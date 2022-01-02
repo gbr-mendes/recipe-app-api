@@ -7,6 +7,7 @@ from rest_framework import status
 
 CREATE_USER_URL = reverse('users:create')
 GENERATE_TOKEN_USER = reverse('users:token')
+ME_URL = reverse('users:me')
 
 
 def create_user(**params):
@@ -121,3 +122,57 @@ class PublicUserApiTests(TestCase):
 
         self.assertNotIn('token', res.data)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_retrive_user_unauthorized(self):
+        """
+        Test that authentication is reqquiired for retrive data of user
+        """
+        res = self.client.get(ME_URL)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PrivateUserApiTests(TestCase):
+    """
+    Test requests that require authentication
+    """
+    def setUp(self):
+        payload = {
+                'name': 'Test Case',
+                'email': 'testcase@gbmsolucoesweb.com',
+                'password': 'testCase'}
+        self.user = create_user(**payload)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_retrive_profile_success(self):
+        """
+        Test retrive logged in userr successul
+        """
+        res = self.client.get(ME_URL)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            res.data,
+            {
+                'name': self.user.name,
+                'email': self.user.email})
+
+    def test_post_me_not_allowed(self):
+        """
+        Test that posts requests are not allowed for the profile
+        """
+        res = self.client.post(ME_URL, {})
+
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_update_profile_success(self):
+        """
+        Test that the user profile was updated
+        """
+        payload = {'name': 'Test Update Name', 'password': 'newpassword'}
+        res = self.client.patch(ME_URL, payload)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.name, payload['name'])
+        self.assertTrue(self.user.check_password(payload['password']))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
