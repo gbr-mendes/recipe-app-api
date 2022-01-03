@@ -13,6 +13,30 @@ from core import models
 RECIPE_URL = reverse('recipe:recipe-list')
 
 
+def recipe_detail_url(recipe_id):
+    """Create an return a recipe detail url"""
+    url = reverse('recipe:recipe-detail', args=[recipe_id])
+    return url
+
+def sample_ingredient(user, name='Salt'):
+    """Create and return a saample ingredient"""
+    return models.Ingredient.objects.create(user=user, name=name)
+
+def sample_tag(user, name="Vegan"):
+    """Create and return a sample tag"""
+    return models.Tag.objects.create(user=user, name=name)
+
+def sample_recipe(user, **parms):
+    """Create and return a recipe"""
+    defaults = {
+        'title': 'Carrot  Cake',
+        'time_minutes': 30,
+        'price': 25.00,
+    }
+    parms.update(defaults)
+    return models.Recipe.objects.create(user=user, **parms)
+
+
 class PublicRecipeApiTests(TestCase):
     """Test for unauthenticated requests"""
     def setUp(self):
@@ -38,8 +62,10 @@ class PrivateRecipeApiTests(TestCase):
     def test_retrive_recipes_success(self):
         """Test retring recipes successful"""
         models.Recipe.objects.create(
-            name='Chocolate Cake',
-            user=self.user
+            title='Chocolate Cake',
+            user=self.user,
+            time_minutes=30,
+            price=25.00
         )
 
         recipes = models.Recipe.objects.all()
@@ -57,16 +83,32 @@ class PrivateRecipeApiTests(TestCase):
             password='password'
         )
         recipe = models.Recipe.objects.create(
-            name='Chocolate Cake',
-            user=self.user
+            title='Chocolate Cake',
+            user=self.user,
+            time_minutes=30,
+            price=25.00
         )
         models.Recipe.objects.create(
-            name='Carrot Cake',
-            user=user2
+            title='Carrot Cake',
+            user=user2,
+            time_minutes=30,
+            price=25.00
         )
 
         res = self.client.get(RECIPE_URL)
 
         self.assertEqual(res.status_code,  status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
-        self.assertEqual(res.data[0]['name'], recipe.name)
+        self.assertEqual(res.data[0]['title'], recipe.title)
+    
+    def test_get_recipe_detail(self):
+        """Test geting the detail for an especifc recipe"""
+        recipe = sample_recipe(user=self.user)
+        recipe.tags.add(sample_tag(user=self.user))
+        recipe.ingredients.add(sample_ingredient(user=self.user))
+
+        res = self.client.get(recipe_detail_url(recipe.id))
+        serializer = serializers.RecipeDetailSerializer(recipe)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(serializer.data, res.data)
